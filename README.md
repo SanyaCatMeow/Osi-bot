@@ -12,6 +12,7 @@ A Telegram bot for open-source intelligence automation. All data is gathered exc
 | `/domain <domain>` | WHOIS, DNS records (A/MX/NS/TXT/SOA), VirusTotal reputation |
 | `/email <address>` | Format validation, MX check, optional breach check (HIBP) |
 | `/user <username>` | Username search across 28+ platforms in parallel |
+| `/tg <username>` | Telegram profile search (fetches ID, name, bio, premium status) |
 | `/phone <number>` | Country, carrier, line type, timezone (via libphonenumber) |
 | `/url <link>` | Redirect chain, page metadata, VirusTotal, Google Safe Browsing |
 | `/file` | Upload a file → EXIF metadata (GPS!), MD5/SHA1/SHA256, VirusTotal |
@@ -75,6 +76,7 @@ osi_bot/
 │   ├── domain_scanner.py    # WHOIS + DNS + VirusTotal
 │   ├── email_scanner.py     # MX check + HIBP
 │   ├── username_scanner.py  # 28+ platform check
+│   ├── telegram_scanner.py  # Telegram profile search (via Telethon Client)
 │   ├── phone_scanner.py     # libphonenumber + Numverify
 │   ├── url_scanner.py       # Redirect + metadata + VT + GSB
 │   └── file_analyzer.py     # EXIF + hashes + VirusTotal
