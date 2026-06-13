@@ -18,6 +18,8 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton("📄 File / EXIF", callback_data="help_file"),
             InlineKeyboardButton("📊 History",     callback_data="help_history"),
+
+            InlineKeyboardButton("✈️ TG",     callback_data="help_tg"),
         ],
     ]
     return InlineKeyboardMarkup(buttons)

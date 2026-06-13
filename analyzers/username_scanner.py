@@ -1,13 +1,12 @@
 import asyncio
+import random
 from typing import List
 import httpx  # pyrefly: ignore[missing-import]
 from utils import esc, b, i, hdr
 
 # ── Platform definitions ─────────────────────────────────────────────────────
-# Each entry: url template, optional profile_url (if API url differs from profile),
-# check type: "status_200" | "not_404" | "content_not:<string>" | "json_not_null"
-
 PLATFORMS: dict = {
+    # ── global ──────────────────────────────────────────────────
     "GitHub": {
         "url":         "https://api.github.com/users/{username}",
         "profile_url": "https://github.com/{username}",
@@ -114,8 +113,8 @@ PLATFORMS: dict = {
         "check": "not_404",
     },
     "Gravatar": {
-        "url":         "https://en.gravatar.com/{username}",
-        "check":       "not_404",
+        "url":   "https://en.gravatar.com/{username}",
+        "check": "not_404",
     },
     "Flickr": {
         "url":   "https://www.flickr.com/people/{username}/",
@@ -125,17 +124,41 @@ PLATFORMS: dict = {
         "url":   "https://www.behance.net/{username}",
         "check": "not_404",
     },
+    # ── local ─────────────────────────────────
+    "DOU.ua": {
+        "url":   "https://dou.ua/users/{username}/",
+        "check": "not_404",
+    },
+    "Freelancehunt": {
+        "url":   "https://freelancehunt.com/freelancer/{username}.html",
+        "check": "not_404",
+    },
+    "GitBook": {
+        "url":   "https://{username}.gitbook.io/",
+        "check": "not_404", 
+    },
+    "Fandom": {
+        "url":   "https://www.fandom.com/u/{username}",
+        "check": "not_404", 
+    },
+    "TryHackMe": {
+        "url":         "https://tryhackme.com/api/user/exist/{username}",
+        "profile_url": "https://tryhackme.com/p/{username}",
+        "check":       "status_200", 
+    },
+    "Habr": {
+        "url":   "https://habr.com/ru/users/{username}/",
+        "check": "not_404", 
+    },
 }
 
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
+# Rotation of User-Agents to avoid blocking
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+]
 
 async def _check_one(
     client: httpx.AsyncClient,
@@ -148,9 +171,23 @@ async def _check_one(
     profile_url = profile_tpl.replace("{username}", username)
     check = cfg.get("check", "not_404")
 
-    try:
-        resp = await client.get(url, follow_redirects=True, timeout=10.0)
+    # random User-Agent
+    headers = {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept-Language": "en-US,en;q=0.9"
+    }
 
+    try:
+        resp = await client.get(url, headers=headers, follow_redirects=True, timeout=10.0)
+
+        # check for typical blockings
+        if resp.status_code == 429:
+            return {"platform": name, "url": profile_url, "exists": False, "error": "Rate Limited (429)"}
+        
+        if resp.status_code in (403, 401):
+            return {"platform": name, "url": profile_url, "exists": False, "error": f"Access Denied ({resp.status_code})"}
+
+        # logic of checks
         if check == "status_200":
             exists = resp.status_code == 200
         elif check == "not_404":
@@ -158,6 +195,9 @@ async def _check_one(
         elif check.startswith("content_not:"):
             needle = check.split(":", 1)[1]
             exists = resp.status_code == 200 and needle not in resp.text
+        elif check.startswith("content_must_have:"):
+            needle = check.split(":", 1)[1].replace("{username}", username)
+            exists = resp.status_code == 200 and needle in resp.text
         elif check == "json_not_null":
             try:
                 exists = resp.status_code == 200 and resp.json() is not None
@@ -168,13 +208,14 @@ async def _check_one(
 
         return {"platform": name, "url": profile_url, "exists": exists}
 
+    except httpx.TimeoutException:
+        return {"platform": name, "url": profile_url, "exists": False, "error": "Timeout"}
     except Exception as exc:
         return {"platform": name, "url": profile_url, "exists": False, "error": str(exc)[:80]}
 
-
 async def scan_username(username: str) -> List[dict]:
     limits = httpx.Limits(max_connections=20, max_keepalive_connections=10)
-    async with httpx.AsyncClient(headers=_HEADERS, limits=limits) as client:
+    async with httpx.AsyncClient(limits=limits) as client:
         tasks = [
             _check_one(client, name, cfg, username)
             for name, cfg in PLATFORMS.items()
@@ -182,7 +223,6 @@ async def scan_username(username: str) -> List[dict]:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
     return [r for r in results if isinstance(r, dict)]
-
 
 def format_username_result(username: str, results: List[dict]) -> str:
     found  = [r for r in results if r.get("exists")]

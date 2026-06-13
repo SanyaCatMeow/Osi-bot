@@ -28,6 +28,7 @@ from handlers import (
     start_command,
     url_command,
     user_command,
+    tg_command,
 )
 
 logging.basicConfig(
@@ -83,7 +84,7 @@ def main() -> None:
     app.add_handler(CommandHandler("history", history_command))
     app.add_handler(file_conv)
     app.add_handler(CallbackQueryHandler(callback_handler))
-
+    app.add_handler(CommandHandler("tg", tg_command))
     logger.info("🤖 OSINT Bot started — polling for updates…")
 
     # Python 3.14 no longer auto-creates an event loop via get_event_loop().

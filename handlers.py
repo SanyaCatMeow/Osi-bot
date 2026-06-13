@@ -15,6 +15,7 @@ from analyzers.username_scanner import scan_username, format_username_result
 from analyzers.phone_scanner import analyze_phone, format_phone_result
 from analyzers.url_scanner import analyze_url, format_url_result
 from analyzers.file_analyzer import analyze_file, format_file_result
+from analyzers.telegram_scanner import scan_telegram_profile
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ _WELCOME = (
     "  /domain &lt;domain&gt; — WHOIS, DNS records, VirusTotal\n"
     "  /email &lt;address&gt; — Email validation &amp; breach check\n"
     "  /user &lt;nick&gt;    — Username across 28+ platforms\n"
+    "  /tg &lt;nick&gt;      — Telegram profile search\n"
     "  /phone &lt;number&gt; — Phone number analysis\n"
     "  /url &lt;link&gt;     — URL scan &amp; metadata\n"
     "  /file            — Upload file → EXIF + hashes\n"
@@ -90,6 +92,12 @@ _HELP_TEXTS = {
         "📊 <b>Query History</b>\n"
         "Usage: <code>/history</code>\n\n"
         "Shows your last 10 OSINT queries with timestamps."
+    ),
+    "help_tg": (
+        "✈️ <b>Telegram Profile Search</b>\n"
+        "Usage: <code>/tg &lt;username&gt;</code>\n"
+        "Example: <code>/tg @durov</code>\n\n"
+        "Fetches the hidden Telegram ID, Name, Bio, and Premium status of any user."
     ),
 }
 
@@ -383,3 +391,30 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = _HELP_TEXTS.get(query.data)
     if text:
         await query.message.reply_text(text, parse_mode=_HTML)
+
+async def tg_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text(
+            "❓ Usage: <code>/tg &lt;username&gt;</code>\nExample: <code>/tg @durov</code>",
+            parse_mode=_HTML,
+        )
+        return
+
+    username = context.args[0].strip()
+    msg = await update.message.reply_text(
+        f"⏳ Querying Telegram servers for <code>{esc(username)}</code>…", 
+        parse_mode=_HTML
+    )
+    await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
+
+    try:
+        # Видаляємо context.bot, залишаємо тільки username
+        result = await scan_telegram_profile(username)
+        
+        await msg.edit_text(result, parse_mode=_HTML, disable_web_page_preview=True)
+        
+        # Save query to history
+        await _save(update, "tg", username, result)
+    except Exception as exc:
+        logger.exception("Telegram scan failed")
+        await msg.edit_text(f"❌ Error: {esc(str(exc)[:200])}", parse_mode=_HTML)
