@@ -1,0 +1,19 @@
+# Pyrefly type checker configuration
+# https://pyrefly.org/en/stable/configuration/
+
+# Path to the Python interpreter with installed packages
+python_interpreter = "C:\\Users\\Sanya Cat\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe"
+
+# Suppress missing-import for all third-party packages without bundled stubs
+ignore_missing_imports = true
+
+# Suppress attribute errors — triggered by python-telegram-bot's Optional types
+# (update.message, update.effective_user etc. are always non-None in handlers)
+[[errors.disabled]]
+code = "attribute-error"
+
+[[errors.disabled]]
+code = "not-awaitable"
+
+[[errors.disabled]]
+code = "bad-argument-type"
